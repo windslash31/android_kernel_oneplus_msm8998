@@ -612,8 +612,6 @@ static int __init tcpc_class_init(void)
 		return PTR_ERR(tcpc_class);
 	}
 	tcpc_init_attrs(&tcpc_dev_type);
-	tcpc_class->suspend = NULL;
-	tcpc_class->resume = NULL;
 
 	pr_info("TCPC class init OK\n");
 	return 0;
