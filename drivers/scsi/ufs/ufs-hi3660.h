@@ -104,8 +104,8 @@ enum {
 #define UFS_AHIT_AUTOH8_TIMER		(0x1001)
 
 /* REG UFS_REG_OCPTHRTL definition */
-#define LP_PGE UFS_BIT(16)
-#define LP_AH8_PGE UFS_BIT(17)
+#define LP_PGE 0x00010000
+#define LP_AH8_PGE 0x00020000
 
 #define UFS_HCLKDIV_NORMAL_VALUE	0xE4
 #define UFS_HCLKDIV_FPGA_VALUE		0x28
@@ -137,17 +137,17 @@ struct ufs_hi3660_host {
 	struct reset_control	*rst;
 	struct reset_control	*assert;
 	uint64_t caps;
-#define hi3660_CAP_RESERVED	UFS_BIT(0)
-#define USE_SNPS_MPHY_TC	UFS_BIT(1)
-#define USE_FPGA_BOARD_CLK	UFS_BIT(2)
-#define USE_RATE_B		UFS_BIT(3)
-#define BROKEN_FASTAUTO		UFS_BIT(4)
-#define USE_ONE_LANE		UFS_BIT(5)
-#define USE_HS_GEAR3		UFS_BIT(6)
-#define USE_HS_GEAR2		UFS_BIT(7)
-#define USE_HS_GEAR1		UFS_BIT(8)
-#define USE_AUTO_H8		UFS_BIT(9)
-#define BROKEN_CLK_GATE_BYPASS	UFS_BIT(10)
+#define hi3660_CAP_RESERVED	0x00000001
+#define USE_SNPS_MPHY_TC	0x00000002
+#define USE_FPGA_BOARD_CLK	0x00000004
+#define USE_RATE_B		0x00000008
+#define BROKEN_FASTAUTO		0x00000010
+#define USE_ONE_LANE		0x00000020
+#define USE_HS_GEAR3		0x00000040
+#define USE_HS_GEAR2		0x00000080
+#define USE_HS_GEAR1		0x00000100
+#define USE_AUTO_H8		0x00000200
+#define BROKEN_CLK_GATE_BYPASS	0x00000400
 
 	int avail_ln_rx;
 	int avail_ln_tx;
