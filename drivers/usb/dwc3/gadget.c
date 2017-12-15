@@ -2694,11 +2694,6 @@ int dwc3_conndone_notifier_unregister(struct notifier_block *nb)
 	return atomic_notifier_chain_unregister(&conndone_nh, nb);
 }
 
-static void dwc3_conndone_notify(enum usb_device_speed speed)
-{
-	atomic_notifier_call_chain(&conndone_nh, (unsigned long)speed, NULL);
-}
-
 static void dwc3_gadget_conndone_interrupt(struct dwc3 *dwc)
 {
 	struct dwc3_ep		*dep;
