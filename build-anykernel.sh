@@ -101,7 +101,7 @@ select choice in LINARO-aarch64-linux-gnu-4.9.4-012017 LINARO-aarch64-linux-gnu-
 do
 case "$choice" in
     "LINARO-aarch64-linux-gnu-4.9.4-012017")
-        export CROSS_COMPILE=${HOME}/android/source/toolchains/LINARO-aarch64-linux-gnu-4.9.4-012017/bin/aarch64-linux-gnu-
+        export CROSS_COMPILE=${HOME}/android/source/toolchains/LINARO-aarch64-linux-gnu-4.9.4-012017/bin/aarch64-linux-android-
         break;;
     "LINARO-aarch64-linux-gnu-6.4.1-082017")
         export CROSS_COMPILE=${HOME}/android/source/toolchains/LINARO-aarch64-linux-gnu-6.4.1-082017/bin/aarch64-linux-gnu-
