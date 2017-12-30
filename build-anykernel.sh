@@ -68,10 +68,18 @@ function make_kernel {
 }
 
 function make_modules {
-        if [ -f "$MODULES_DIR/*.ko" ]; then
-            rm `echo $MODULES_DIR"/*"`
-        fi
+	# Remove and re-create modules directory
+	rm -rf $MODULES_DIR
+	mkdir -p $MODULES_DIR
+
+	# Copy modules over
         find $KBUILD_OUTPUT -name '*.ko' -exec cp -v {} $MODULES_DIR \;
+
+	# Strip modules
+	${CROSS_COMPILE}strip --strip-unneeded $MODULES_DIR/*.ko
+
+	# Sign modules
+	find $MODULES_DIR -name '*.ko' -exec $KBUILD_OUTPUT/scripts/sign-file sha512 $KBUILD_OUTPUT/certs/signing_key.pem $KBUILD_OUTPUT/certs/signing_key.x509 {} \;
 }
 
 function make_zip {
@@ -133,7 +141,6 @@ do
 case "$dchoice" in
   y|Y)
     make_kernel
-    make_modules
     break
     ;;
   n|N )
@@ -151,6 +158,7 @@ while read -p "Do you want to ZIP kernel (y/n)? " dchoice
 do
 case "$dchoice" in
   y|Y)
+    make_modules
     make_zip
     break
     ;;
