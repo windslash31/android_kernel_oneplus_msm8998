@@ -38,7 +38,7 @@ export CCACHE=ccache
 
 # Paths
 KERNEL_DIR=`pwd`
-KBUILD_OUTPUT="${KERNEL_DIR}/out"
+KBUILD_OUTPUT="${KERNEL_DIR}/../out"
 REPACK_DIR="${HOME}/android/source/kernel/AnyKernel2"
 PATCH_DIR="${HOME}/android/source/kernel/AnyKernel2/patch"
 MODULES_DIR="${HOME}/android/source/kernel/AnyKernel2/modules"
