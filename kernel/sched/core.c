@@ -1978,6 +1978,7 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 
 	success = 1; /* we're going to change ->state */
 	cpu = task_cpu(p);
+	p->waiting_time = cpu_clock(cpu);
 
 	/*
 	 * Ensure we load p->on_rq _after_ p->state, otherwise it would
@@ -2113,6 +2114,7 @@ static void try_to_wake_up_local(struct task_struct *p)
 		goto out;
 
 	trace_sched_waking(p);
+	p->waiting_time = cpu_clock(cpu_of(rq));
 
 	if (!task_on_rq_queued(p)) {
 		u64 wallclock = walt_ktime_clock();
@@ -2200,6 +2202,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	init_dl_task_timer(&p->dl);
 	__dl_clear_params(p);
 
+	init_rt_schedtune_timer(&p->rt);
 	INIT_LIST_HEAD(&p->rt.run_list);
 	p->rt.timeout		= 0;
 	p->rt.time_slice	= sched_rr_timeslice;
@@ -3019,7 +3022,9 @@ static void sched_freq_tick_pelt(int cpu)
 	 * utilization and to harm its performance the least, request
 	 * a jump to a higher OPP as soon as the margin of free capacity
 	 * is impacted (specified by capacity_margin).
+	 * Remember CPU utilization in sched_capacity_reqs should be normalised.
 	 */
+	cpu_utilization = cpu_utilization * SCHED_CAPACITY_SCALE / capacity_orig_of(cpu);
 	set_cfs_cpu_capacity(cpu, true, cpu_utilization);
 }
 
@@ -3046,7 +3051,9 @@ static void sched_freq_tick_walt(int cpu)
 	 * It is likely that the load is growing so we
 	 * keep the added margin in our request as an
 	 * extra boost.
+	 * Remember CPU utilization in sched_capacity_reqs should be normalised.
 	 */
+	cpu_utilization = cpu_utilization * SCHED_CAPACITY_SCALE / capacity_orig_of(cpu);
 	set_cfs_cpu_capacity(cpu, true, cpu_utilization);
 
 }
@@ -3407,11 +3414,34 @@ static void __sched notrace __schedule(bool preempt)
 	rq->clock_skip_update = 0;
 
 	if (likely(prev != next)) {
+		u64 now;
 		rq->nr_switches++;
 		rq->curr = next;
 		++*switch_count;
 
 		trace_sched_switch(preempt, prev, next);
+
+		/* Log and trace when scheduling a long-delayed task */
+		now = cpu_clock(cpu);
+		prev->waiting_time = now;
+		if (!is_idle_task(next) &&
+		    now > next->waiting_time + NSEC_PER_SEC) {
+			printk("task wait timing: "
+			       "prev->tgid: %d, prev->pid: %d, "
+			       "prev->prio: %d, prev->vruntime: %llu, "
+			       "next->tgid: %d, next->pid: %d, "
+			       "next->prio: %d, next->vruntime: %llu, "
+			       "now: %llu, ready: %llu, "
+			       "waiting time: %llu\n",
+			       prev->tgid, prev->pid, prev->prio,
+			       prev->se.vruntime,
+			       next->tgid, next->pid, next->prio,
+			       next->se.vruntime,
+			       now, next->waiting_time,
+			       now - next->waiting_time);
+		}
+
+
 		rq = context_switch(rq, prev, next); /* unlocks the rq */
 		cpu = cpu_of(rq);
 	} else {

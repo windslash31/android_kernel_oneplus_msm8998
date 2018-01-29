@@ -169,6 +169,7 @@ extern int nr_threads;
 DECLARE_PER_CPU(unsigned long, process_counts);
 extern int nr_processes(void);
 extern unsigned long nr_running(void);
+extern bool cpu_has_rt_task(int cpu);
 extern bool single_task_running(void);
 extern unsigned long nr_iowait(void);
 extern unsigned long nr_iowait_cpu(int cpu);
@@ -1445,6 +1446,10 @@ struct sched_rt_entity {
 	unsigned short on_rq;
 	unsigned short on_list;
 
+	/* Accesses for these must be guarded by rq->lock of the task's rq */
+	bool schedtune_enqueued;
+	struct hrtimer schedtune_timer;
+
 	struct sched_rt_entity *back;
 #ifdef CONFIG_RT_GROUP_SCHED
 	struct sched_rt_entity	*parent;
@@ -1953,6 +1958,9 @@ struct task_struct {
 	 */
 	u64 timer_slack_ns;
 	u64 default_timer_slack_ns;
+
+	/* Time that the task woke up or was last descheduled */
+	u64 waiting_time;
 
 #ifdef CONFIG_KASAN
 	unsigned int kasan_depth;
