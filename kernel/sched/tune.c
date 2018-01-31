@@ -22,8 +22,8 @@ extern struct target_nrg schedtune_target_nrg;
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 unsigned int top_app_idx = 0;
-int default_topapp_boost = 0;
 struct cgroup_subsys_state *topapp_css;
+static DEFINE_MUTEX(stune_boost_mutex);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 /* Performance Boost region (B) threshold params */
@@ -136,6 +136,19 @@ struct schedtune {
 	/* Hint to bias scheduling of tasks on that SchedTune CGroup
 	 * towards idle CPUs */
 	int prefer_idle;
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	/*
+	 * This tracks the default boost value and is used to restore
+	 * the value when Dynamic SchedTune Boost is reset.
+	 */
+	int boost_default;
+
+	/*
+	 * Controls whether a CGroup is eligible for stune boost.
+	 */
+	bool dynamic_boost_enabled;
+#endif // CONFIG_DYNAMIC_STUNE_BOOST
 };
 
 static inline struct schedtune *css_st(struct cgroup_subsys_state *css)
@@ -168,6 +181,10 @@ root_schedtune = {
 	.perf_boost_idx = 0,
 	.perf_constrain_idx = 0,
 	.prefer_idle = 0,
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	.boost_default = 0,
+	.dynamic_boost_enabled = false,
+#endif // CONFIG_DYNAMIC_STUNE_BOOST
 };
 
 int
@@ -588,44 +605,6 @@ boost_read(struct cgroup_subsys_state *css, struct cftype *cft)
 	return st->boost;
 }
 
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-int
-dynamic_boost_write(struct cgroup_subsys_state *css, int boost)
-{
-	struct schedtune *st = css_st(css);
-	unsigned threshold_idx;
-	int boost_pct;
-
-	if (boost < -100 || boost > 100)
-		return -EINVAL;
-	boost_pct = boost;
-
-	/*
-	 * Update threshold params for Performance Boost (B)
-	 * and Performance Constraint (C) regions.
-	 * The current implementatio uses the same cuts for both
-	 * B and C regions.
-	 */
-	threshold_idx = clamp(boost_pct, 0, 99) / 10;
-	st->perf_boost_idx = threshold_idx;
-	st->perf_constrain_idx = threshold_idx;
-
-	st->boost = boost;
-	if (css == &root_schedtune.css) {
-		sysctl_sched_cfs_boost = boost;
-		perf_boost_idx  = threshold_idx;
-		perf_constrain_idx  = threshold_idx;
-	}
-
-	/* Update CPU boost */
-	schedtune_boostgroup_update(st->idx, st->boost);
-
-	trace_sched_tune_config(st->boost);
-
-	return 0;
-}
-#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
-
 static int
 boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
 	    s64 boost)
@@ -649,17 +628,14 @@ boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
 	st->perf_constrain_idx = threshold_idx;
 
 	st->boost = boost;
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	st->boost_default = boost;
+#endif // CONFIG_DYNAMIC_STUNE_BOOST
 	if (css == &root_schedtune.css) {
 		sysctl_sched_cfs_boost = boost;
 		perf_boost_idx  = threshold_idx;
 		perf_constrain_idx  = threshold_idx;
 	}
-
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-        // Remember default top-app boost value
-        if (st->idx == top_app_idx)
-                default_topapp_boost = boost;
-#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	/* Update CPU boost */
 	schedtune_boostgroup_update(st->idx, st->boost);
@@ -700,15 +676,14 @@ schedtune_boostgroup_init(struct schedtune *st)
 	}
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-    /* 
-     * Assume confidently that the index of top-app is the last assigned index.
-     * This observation is likely due to SchedTune cgroups being initialized in alphabetical order.
-     * E.g. background, foreground, system-background, top-app (last)
-     */
+        /*
+         * Assume confidently that the index of top-app is the last assigned index.
+         * This observation is likely due to SchedTune cgroups being initialized in alphabetical order.
+         * E.g. background, foreground, system-background, top-app (last)
+         */
 	if (st->idx > top_app_idx) {
 		top_app_idx = st->idx;
                 topapp_css = &st->css;
-                default_topapp_boost = st->boost;
         }
 
 	pr_info("STUNE INIT: top app idx: %d\n", top_app_idx);
@@ -805,6 +780,64 @@ schedtune_init_cgroups(void)
 
 	schedtune_initialized = true;
 }
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+static int dynamic_boost_write(struct cgroup_subsys_state *css, s64 boost)
+{
+	int ret;
+	struct schedtune *st = css_st(css);
+
+	// Backup boost_default because it will be overriden
+	int boost_default_backup = st->boost_default;
+
+	ret = boost_write(css, NULL, boost);
+
+	// Restore boost_default
+	st->boost_default = boost_default_backup;
+
+	return ret;
+}
+
+int set_stune_boost(struct cgroup_subsys_state *css, int boost)
+{
+	int ret = 0;
+	struct schedtune *st = css_st(css);
+
+	mutex_lock(&stune_boost_mutex);
+	if(unlikely(st->dynamic_boost_enabled && boost <= st->boost))
+		goto end;
+
+	ret = dynamic_boost_write(css, boost);
+
+	if(unlikely(ret < 0))
+		goto end;
+
+	st->dynamic_boost_enabled = true;
+end:
+	mutex_unlock(&stune_boost_mutex);
+	return ret;
+}
+
+int reset_stune_boost(struct cgroup_subsys_state *css)
+{
+	int ret = 0;
+	struct schedtune *st = css_st(css);
+
+	mutex_lock(&stune_boost_mutex);
+	if(unlikely(!(st->dynamic_boost_enabled)))
+		goto end;
+
+	ret = dynamic_boost_write(css, st->boost_default);
+
+	if(unlikely(ret < 0))
+		goto end;
+
+	st->dynamic_boost_enabled = false;
+end:
+	mutex_unlock(&stune_boost_mutex);
+	return ret;
+}
+#endif // CONFIG_DYNAMIC_STUNE_BOOST
 
 #else /* CONFIG_CGROUP_SCHEDTUNE */
 

@@ -181,7 +181,7 @@ static void do_input_boost_rem(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
-        dynamic_boost_write(topapp_css, default_topapp_boost);
+        reset_stune_boost(topapp_css);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	/* Update policies for all online CPUs */
@@ -205,8 +205,7 @@ static void do_input_boost(struct kthread_work *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-        if (dynamic_stune_boost > default_topapp_boost)
-                dynamic_boost_write(topapp_css, dynamic_stune_boost);
+        set_stune_boost(topapp_css, dynamic_stune_boost);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	/* Update policies for all online CPUs */
@@ -269,7 +268,7 @@ static void cpuboost_input_disconnect(struct input_handle *handle)
 {
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
-        dynamic_boost_write(topapp_css, default_topapp_boost);
+        reset_stune_boost(topapp_css);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	input_close_device(handle);
