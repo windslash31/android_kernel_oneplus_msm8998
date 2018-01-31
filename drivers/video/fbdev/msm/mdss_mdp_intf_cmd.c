@@ -406,7 +406,7 @@ static void mdss_mdp_cmd_wait4_autorefresh_pp(struct mdss_mdp_ctl *ctl)
 		return;
 	}
 
-	if (line_out < ctl->mixer_left->roi.h) {
+	if ((line_out < ctl->mixer_left->roi.h) && (line_out)) {
 		reinit_completion(&ctx->autorefresh_ppdone);
 
 		/* enable ping pong done */
@@ -2091,8 +2091,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 	struct mdss_mdp_cmd_ctx *ctx;
 	struct mdss_panel_data *pdata;
 	unsigned long flags;
-	int rc = 0, te_irq;
-
+    int rc = 0;
 	ctx = (struct mdss_mdp_cmd_ctx *) ctl->intf_ctx[MASTER_CTX];
 	if (!ctx) {
 		pr_err("invalid ctx\n");
@@ -2145,21 +2144,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 				__func__,
 				ctl->num, rc, ctx->pp_timeout_report_cnt,
 				atomic_read(&ctx->koff_cnt));
-
-		/* enable TE irq to check if it is coming from the panel */
-		te_irq = gpio_to_irq(pdata->panel_te_gpio);
-		enable_irq(te_irq);
-
-		/* wait for 20ms to ensure we are getting the next TE */
-		usleep_range(20000, 20010);
-
-		reinit_completion(&pdata->te_done);
-		rc = wait_for_completion_timeout(&pdata->te_done, KOFF_TIMEOUT);
-
-		if (!rc) {
-			MDSS_XLOG(0xbac);
-			mdss_fb_report_panel_dead(ctl->mfd);
-		} else if (ctx->pp_timeout_report_cnt == 0) {
+        if (ctx->pp_timeout_report_cnt == 0) {
 			MDSS_XLOG(0xbad);
 			MDSS_XLOG_TOUT_HANDLER("mdp", "dsi0_ctrl", "dsi0_phy",
 				"dsi1_ctrl", "dsi1_phy", "vbif", "vbif_nrt",
@@ -2173,10 +2158,6 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 				"dsi_dbg_bus", "panic");
 			mdss_fb_report_panel_dead(ctl->mfd);
 		}
-
-		/* disable te irq */
-		disable_irq_nosync(te_irq);
-
 		ctx->pp_timeout_report_cnt++;
 		rc = -EPERM;
 
@@ -2510,6 +2491,7 @@ int mdss_mdp_cmd_set_autorefresh_mode(struct mdss_mdp_ctl *mctl, int frame_cnt)
 		 */
 		ctx->autorefresh_state = MDP_AUTOREFRESH_ON_REQUESTED;
 		ctx->autorefresh_frame_cnt = frame_cnt;
+		mctl->mdata->serialize_wait4pp = true;
 
 		/* Cancel GATE Work Item */
 		if (cancel_work_sync(&ctx->gate_clk_work))
@@ -2523,8 +2505,10 @@ int mdss_mdp_cmd_set_autorefresh_mode(struct mdss_mdp_ctl *mctl, int frame_cnt)
 		if (frame_cnt == 0) {
 			ctx->autorefresh_state = MDP_AUTOREFRESH_OFF;
 			ctx->autorefresh_frame_cnt = 0;
+			mctl->mdata->serialize_wait4pp = false;
 		} else {
 			ctx->autorefresh_frame_cnt = frame_cnt;
+			mctl->mdata->serialize_wait4pp = true;
 		}
 		break;
 	case MDP_AUTOREFRESH_ON:
@@ -2536,6 +2520,7 @@ int mdss_mdp_cmd_set_autorefresh_mode(struct mdss_mdp_ctl *mctl, int frame_cnt)
 			ctx->autorefresh_state = MDP_AUTOREFRESH_OFF_REQUESTED;
 		} else {
 			ctx->autorefresh_frame_cnt = frame_cnt;
+			mctl->mdata->serialize_wait4pp = true;
 		}
 		break;
 	case MDP_AUTOREFRESH_OFF_REQUESTED:
@@ -2545,6 +2530,7 @@ int mdss_mdp_cmd_set_autorefresh_mode(struct mdss_mdp_ctl *mctl, int frame_cnt)
 			pr_debug("cancelling autorefresh off request\n");
 			ctx->autorefresh_state = MDP_AUTOREFRESH_ON;
 			ctx->autorefresh_frame_cnt = frame_cnt;
+			mctl->mdata->serialize_wait4pp = true;
 		}
 		break;
 	default:
@@ -2873,6 +2859,7 @@ static int mdss_mdp_disable_autorefresh(struct mdss_mdp_ctl *ctl,
 	cfg |= BIT(20);
 	mdss_mdp_pingpong_write(pp_base,
 				MDSS_MDP_REG_PP_SYNC_CONFIG_VSYNC, cfg);
+	ctl->mdata->serialize_wait4pp = false;
 
 	return 0;
 }
