@@ -200,11 +200,13 @@ static void do_input_boost(struct work_struct *work)
 
 	/* Update policies for all online CPUs */
 	update_policy_online();
+	pr_info("cpuboost: Freq boosted\n");
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
 	do_stune_boost("top-app", dynamic_stune_boost);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
+	pr_info("cpuboost: Stune boosted\n");
 
 	queue_delayed_work(cpu_boost_wq, &input_boost_rem,
 					msecs_to_jiffies(input_boost_ms));
@@ -225,6 +227,7 @@ static void cpuboost_input_event(struct input_handle *handle,
 	if (work_pending(&input_boost_work))
 		return;
 
+	pr_info("cpuboost: BEGIN\n");
 	queue_work(cpu_boost_wq, &input_boost_work);
 	last_input_time = ktime_to_us(ktime_get());
 }
