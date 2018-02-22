@@ -488,6 +488,8 @@ static void c0_cpufreq_limit(struct work_struct *work)
 		cpufreq_cpu_put(policy);
 	}
 	//sched_set_boost(1);
+	do_stune_boost("top-app", 70);
+	do_stune_boost("foreground", 70);
 }
 
 void c0_cpufreq_limit_queue(void)
