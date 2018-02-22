@@ -208,10 +208,14 @@ void thaw_fingerprintd(void)
 	for_each_process_thread(g, p) {
 	/* No other threads should have PF_SUSPEND_TASK set */
 	WARN_ON((p != curr) && (p->flags & PF_SUSPEND_TASK));
-	if (!memcmp(p->comm, "fingerprintd", 13))
+	if (!memcmp(p->comm, "fingerprintd", 13)) {
 		__thaw_task(p);
-	if (!memcmp(p->comm, "fingerprintmsg", 15))
+		pr_info("thaw: fingerpintd\n");
+	}
+	if (!memcmp(p->comm, "fingerprintmsg", 15)) {
 		__thaw_task(p);
+		pr_info("thaw: fingerpintmsg\n");
+	}
 	}
 	read_unlock(&tasklist_lock);
 	pm_freezing = true;
