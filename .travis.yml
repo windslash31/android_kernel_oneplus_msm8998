@@ -1,0 +1,22 @@
+language: c
+sudo: required
+dist: trusty
+cache: ccache
+
+# Source environment variables
+before_install:
+  - DEFCONFIG=oneplus5_defconfig
+  - TOOLCHAIN=$HOME/toolchain
+  - export ARCH=arm64
+  - export CROSS_COMPILE="ccache $TOOLCHAIN/bin/aarch64-linux-android-"
+
+# Download kernel building dependencies and toolchain
+install: 
+  - git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/ -b master $TOOLCHAIN
+
+# Create output directory and compile kernel
+script:
+  - mkdir -p ../out
+  - make O=../out $DEFCONFIG
+  - make O=../out -j$(nproc)
+
