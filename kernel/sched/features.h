@@ -97,4 +97,4 @@ SCHED_FEAT(FBT_STRICT_ORDER, false)
 /*
  * UtilEstimation. Use estimated CPU utilization.
  */
-SCHED_FEAT(UTIL_EST, false)
+SCHED_FEAT(UTIL_EST, true)
