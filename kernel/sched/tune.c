@@ -25,6 +25,7 @@ extern struct reciprocal_value schedtune_spc_rdiv;
 struct target_nrg schedtune_target_nrg;
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
+#define DYNAMIC_BOOST_SLOTS_COUNT 5
 static DEFINE_MUTEX(stune_boost_mutex);
 static struct schedtune *getSchedtune(char *st_name);
 static int dynamic_boost(struct schedtune *st, int boost);
@@ -775,6 +776,10 @@ schedtune_boostgroup_init(struct schedtune *st)
 {
 	struct boost_groups *bg;
 	int cpu;
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	int i;
+	struct boost_slot *slot;
+#endif // CONFIG_DYNAMIC_STUNE_BOOST
 
 	/* Keep track of allocated boost groups */
 	allocated_group[st->idx] = st;
@@ -791,6 +796,20 @@ schedtune_boostgroup_init(struct schedtune *st)
 	/* Initialize boost slots */
 	INIT_LIST_HEAD(&(st->active_boost_slots.list));
 	INIT_LIST_HEAD(&(st->available_boost_slots.list));
+
+	/* Populate available_boost_slots */
+	for (i = 0; i < DYNAMIC_BOOST_SLOTS_COUNT; ++i) {
+		slot = kmalloc(sizeof(*slot), GFP_KERNEL);
+		slot->idx = i;
+		list_add_tail(&(slot->list), &(st->available_boost_slots.list));
+	}
+
+#ifdef DEBUG
+	list_for_each_entry(slot, &(st->available_boost_slots.list), list) {
+		pr_info("STUNE: initialised: %d\n", slot->idx);
+	}
+#endif
+
 #endif // CONFIG_DYNAMIC_STUNE_BOOST
 
 	return 0;
