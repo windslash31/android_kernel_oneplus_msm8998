@@ -5,6 +5,7 @@
 #include <linux/printk.h>
 #include <linux/rcupdate.h>
 #include <linux/slab.h>
+#include <linux/list.h>
 
 #include <trace/events/sched.h>
 
@@ -27,6 +28,10 @@ struct target_nrg schedtune_target_nrg;
 static DEFINE_MUTEX(stune_boost_mutex);
 static struct schedtune *getSchedtune(char *st_name);
 static int dynamic_boost(struct schedtune *st, int boost);
+struct boost_slot {
+	struct list_head list;
+	int idx;
+};
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 /* Performance Boost region (B) threshold params */
@@ -152,6 +157,10 @@ struct schedtune {
 
 	/* Number of ongoing boosts for this SchedTune CGroup */
 	int boost_count;
+
+	/* Lists of active and available boost slots */
+	struct boost_slot active_boost_slots;
+	struct boost_slot available_boost_slots;
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 };
 
@@ -189,6 +198,14 @@ root_schedtune = {
 	.boost_default = 0,
 	.dynamic_boost = 0,
 	.boost_count = 0,
+	.active_boost_slots = {
+		.list = LIST_HEAD_INIT(root_schedtune.active_boost_slots.list),
+		.idx = 0,
+	},
+	.available_boost_slots = {
+		.list = LIST_HEAD_INIT(root_schedtune.available_boost_slots.list),
+		.idx = 0,
+	}
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 };
 
@@ -769,6 +786,12 @@ schedtune_boostgroup_init(struct schedtune *st)
 		bg->group[st->idx].tasks = 0;
 		bg->group[st->idx].ts = 0;
 	}
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	/* Initialize boost slots */
+	INIT_LIST_HEAD(&(st->active_boost_slots.list));
+	INIT_LIST_HEAD(&(st->available_boost_slots.list));
+#endif // CONFIG_DYNAMIC_STUNE_BOOST
 
 	return 0;
 }
