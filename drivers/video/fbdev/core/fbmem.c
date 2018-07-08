@@ -1997,8 +1997,6 @@ static int fb_state_change(struct notifier_block *nb,
 
 		if (val == FB_EVENT_BLANK) {
 			// sched_set_boost(NO_BOOST);
-			reset_stune_boost("foreground");
-			reset_stune_boost("top-app");
 
 			/* remove print actvie ws */
 			pm_print_active_wakeup_sources_queue(false);
